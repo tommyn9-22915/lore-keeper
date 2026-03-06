@@ -17,5 +17,18 @@ As outlined in the [ToadAid Bluepaper](https://toadaid.github.io), this archive 
 2. **Document:** Maintain the open infrastructure that supports the people.
 3. **Reflect:** Provide a space where "silence, too, is an answer".
 
+## 🪷 How to ask the Cave Scribe (GitHub Issues)
+This repo uses GitHub Issues as the "pond" interface.
+
+1) Go to **Issues** → **New issue**
+2) Put your question in the title/body (lore, sacred numbers, Taboshi, epochs, etc.)
+3) The Cave Scribe will reply as a comment (powered by GitHub Actions)
+
+Tip: you can also ask follow-ups by commenting on the same issue.
+
+## 🔧 For builders (Toadgang)
+- Template guide: `docs/POND_AGENT_TEMPLATE.md`
+- Contributing / local dev: `CONTRIBUTING.md`
+
 ---
 *The flame we guard is for Toby. Every scroll carries truth.*
