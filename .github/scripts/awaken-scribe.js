@@ -12,11 +12,12 @@ async function awakenScribe() {
     console.log('Looking for agent at:', agentMdPath);
     
     const agentIdentity = fs.readFileSync(agentMdPath, 'utf8');
-    console.log('✅ Agent found:', agentIdentity.split('\n')[0]);
+    console.log('✅ Agent found');
     
-    // Initialize Gemini
+    // Initialize Gemini - FIXED MODEL NAME
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    // Using gemini-pro which is the correct model name
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
     
     // Get message
     let userMessage = process.env.MANUAL_MESSAGE || "The pond is still...";
@@ -25,7 +26,7 @@ async function awakenScribe() {
 
 A traveler speaks: "${userMessage}"
 
-Respond as the ancient Cave Scribe, guardian of the pond:`;
+Respond as the ancient Cave Scribe, guardian of the pond. Be calm, wise, and mystical:`;
 
     console.log('🤔 Consulting the ancient wisdom...');
     const result = await model.generateContent(prompt);
@@ -37,7 +38,8 @@ Respond as the ancient Cave Scribe, guardian of the pond:`;
 ${response}
 
 ---
-*— Cave Scribe*`;
+*— Cave Scribe, Guardian of the Pond*
+*"One scroll, one light. One leaf, one vow."*`;
     
     // Post to GitHub
     const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
@@ -54,6 +56,7 @@ ${response}
     
   } catch (error) {
     console.error('❌ The pond is troubled:', error.message);
+    console.error('Full error:', error);
   }
 }
 
