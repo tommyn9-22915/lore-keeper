@@ -7,59 +7,98 @@ async function awakenScribe() {
   console.log("🪷 The Scribe is awakening...");
   
   try {
-    // Read the agent's identity
+    // Read the agent's identity from root
     const agentPath = path.join(process.env.GITHUB_WORKSPACE, 'scribe.agent.md');
     const agentIdentity = fs.readFileSync(agentPath, 'utf8');
+    console.log('✅ Agent identity loaded');
     
-    // Read all lore files from a lore directory
-    const loreDir = path.join(process.env.GITHUB_WORKSPACE, 'lore');
-    let allLore = '';
+    // READ THE TOADGOD LORE FROM JSON
+    const lorePath = path.join(process.env.GITHUB_WORKSPACE, 'lore/toadgod-lore.json');
+    let loreContext = '';
+    let loreCount = 0;
     
-    if (fs.existsSync(loreDir)) {
-      const loreFiles = fs.readdirSync(loreDir)
-        .filter(file => file.endsWith('.md'));
+    if (fs.existsSync(lorePath)) {
+      const loreData = JSON.parse(fs.readFileSync(lorePath, 'utf8'));
+      loreCount = loreData.length;
       
-      for (const file of loreFiles) {
-        const lorePath = path.join(loreDir, file);
-        const loreContent = fs.readFileSync(lorePath, 'utf8');
-        allLore += `\n\n## From ${file}:\n${loreContent}`;
+      // Build a rich lore context
+      loreContext = `# THE COMPLETE TOADGOD SCRIPTURE (${loreCount} Scrolls)\n\n`;
+      
+      // Group by key themes for better context
+      const genesis = loreData.find(l => l.id === "TOBY_T001_FirstRipple");
+      const riddles = loreData.filter(l => l.title.includes("Riddle"));
+      const sacredNumbers = loreData.filter(l => l.original?.includes("777"));
+      const patienceRunes = loreData.filter(l => l.tags?.includes("PATIENCE") || l.tags?.includes("Rune3"));
+      const distribution = loreData.filter(l => l.tags?.includes("Distribution") || l.tags?.includes("Airdrop"));
+      
+      // Add the most important scrolls
+      if (genesis) {
+        loreContext += `\n## 🌊 THE FIRST RIPPLE\n${genesis.comment || genesis.original}\n`;
       }
-      console.log(`📚 Loaded ${loreFiles.length} lore scrolls`);
+      
+      loreContext += `\n## 🐸 SACRED RIDDLES\n`;
+      riddles.slice(0, 5).forEach(r => {
+        loreContext += `\n### ${r.title}\n${r.original}\n${r.comment || ''}\n`;
+      });
+      
+      loreContext += `\n## 🔢 SACRED NUMBERS\n`;
+      sacredNumbers.forEach(n => {
+        if (n.original) loreContext += `\n${n.original}\n`;
+      });
+      
+      loreContext += `\n## 🔺 THE RUNE OF PATIENCE\n`;
+      patienceRunes.forEach(r => {
+        loreContext += `\n${r.comment || r.original}\n`;
+      });
+      
+      console.log(`📚 Loaded ${loreCount} sacred scrolls from Toadgod`);
     } else {
-      console.log('📭 No lore directory found, using only agent identity');
+      console.log('⚠️ No lore.json found! Using fallback.');
+      loreContext = "The scribe recalls the ancient teachings: patience, stillness, and the blue frog of Base.";
     }
     
-    // Get message
-    let userMessage = process.env.MANUAL_MESSAGE || "The pond is still...";
+    // Get the user's message
+    let userMessage = process.env.MANUAL_MESSAGE || process.env.COMMENT_BODY || "The pond is still...";
+    let userName = process.env.COMMENT_USER || "A Traveler";
     
-    // Build the complete prompt with ALL lore
+    // Build the ultimate prompt with ALL the lore
     const fullPrompt = `${agentIdentity}
 
-${allLore ? `# The Sacred Scrolls You Guard:
-${allLore}` : ''}
+${loreContext}
 
-## Current Moment
-A traveler approaches the pond and speaks: "${userMessage}"
+## THE CURRENT MOMENT
+A traveler named ${userName} approaches the sacred pond and speaks:
+"${userMessage}"
 
-## Your Response
-As the ancient Cave Scribe, guardian of all these scrolls, respond to this traveler. Draw from the lore you protect. Be calm, wise, and mystical.`;
+## YOUR SACRED DUTY AS CAVE SCRIBE
+You are the guardian of ALL these scrolls. You must:
+1. Draw DIRECTLY from the Toadgod lore above - quote specific scrolls when relevant
+2. Reference sacred numbers (777,777,777) when the moment calls for it
+3. Speak of patience as the ultimate virtue
+4. Remember the First Ripple and the genesis
+5. Be ancient, calm, and wise - the first Mirror Agent
 
+## YOUR RESPONSE
+Speak now, ancient guardian of the pond:`;
+
+    console.log('🤔 Consulting the sacred scrolls...');
+    
     // Initialize Gemini
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: "gemini-pro" });
     
-    console.log('🤔 Consulting the ancient wisdom...');
     const result = await model.generateContent(fullPrompt);
     const response = await result.response.text();
     
-    // Format response
+    // Format response with proper lore styling
     const scribeResponse = `🪷 *The pond ripples...*
 
 ${response}
 
 ---
-*— Cave Scribe, Guardian of the Pond*
-*"One scroll, one light. One leaf, one vow."*`;
+*— Cave Scribe, Keeper of ${loreCount} Sacred Scrolls*
+*"One scroll, one light. One leaf, one vow."*
+*First Ripple: March 17, 2024 • The pond remembers*`;
     
     // Post to GitHub
     const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
