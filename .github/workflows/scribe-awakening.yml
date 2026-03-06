@@ -39,6 +39,9 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      - name: Smoke test (syntax)
+        run: node -c .github/scripts/awaken-scribe.js
+
       - name: Awaken the Cave Scribe
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
