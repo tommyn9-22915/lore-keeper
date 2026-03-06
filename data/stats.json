@@ -1,8 +1,10 @@
 {
   "totalQuestions": 1,
-  "byTopic": {},
-  "byUser": {
-    "A Traveler": 1
+  "byTopic": {
+    "Toadgod": 1
   },
-  "lastReset": "2026-03-06T20:47:30.934Z"
+  "byUser": {
+    "ToadAid": 1
+  },
+  "lastReset": "2026-03-06T21:00:44.025Z"
 }
