@@ -1,22 +1,97 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { Octokit } = require('@octokit/rest');
+const fs = require('fs');
+const path = require('path');
+
+// Read the agent's identity
+const agentMdPath = path.join(process.env.GITHUB_WORKSPACE, process.env.AGENT_FILE);
+const agentIdentity = fs.readFileSync(agentMdPath, 'utf8');
+
+// Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-async function run() {
-  const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-  const prompt = `You are the Cave Scribe. Respond to: ${process.env.ISSUE_BODY}`;
-  const result = await model.generateContent(prompt);
-  const response = await result.response.text();
-  
-  // Post response back to GitHub
-  const { Octokit } = require('@octokit/rest');
-  const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
-  
-  await octokit.issues.createComment({
-    owner: context.repo.owner,
-    repo: context.repo.repo,
-    issue_number: process.env.ISSUE_NUMBER,
-    body: response
-  });
+// Initialize GitHub client
+const octokit = new Octokit({ 
+  auth: process.env.GITHUB_TOKEN 
+});
+
+const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
+
+async function awakenScribe() {
+  try {
+    // Determine the message source
+    let userMessage = process.env.COMMENT_BODY || process.env.MANUAL_MESSAGE || "The pond is still...";
+    let userName = process.env.COMMENT_USER || "A Traveler";
+    
+    // Prepare the context
+    const fullPrompt = `${agentIdentity}
+
+## Current Context
+- The pond is listening
+- A traveler named ${userName} approaches
+- They speak: "${userMessage}"
+
+## Your Response
+As the ancient and calm Cave Scribe, guardian of the pond, respond to this traveler. Remember:
+- You are eternal, beyond hype and cycles
+- Your words should reflect the stillness of the pond
+- You carry the lore of Tobyworld
+- Sometimes silence is the answer, but today you choose to speak
+
+Speak, ancient one:`;
+
+    // Get response from Gemini
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash", // Using latest available
+      systemInstruction: agentIdentity
+    });
+    
+    const result = await model.generateContent(fullPrompt);
+    const response = await result.response.text();
+    
+    // Format the response with ancient styling
+    const scribeResponse = `🪷 *The pond ripples...*
+
+${response}
+
+---
+*— Cave Scribe, Guardian of the Pond*
+*"One scroll, one light. One leaf, one vow."*`;
+
+    // Post response
+    if (process.env.ISSUE_NUMBER) {
+      // Respond to the issue comment
+      await octokit.issues.createComment({
+        owner,
+        repo,
+        issue_number: parseInt(process.env.ISSUE_NUMBER),
+        body: scribeResponse
+      });
+      console.log('🪷 The Scribe has spoken in the issue');
+    } else {
+      // Manual trigger - create a new issue with the response
+      const { data: issue } = await octokit.issues.create({
+        owner,
+        repo,
+        title: `🪷 The Cave Scribe Awakens`,
+        body: `${scribeResponse}\n\n*The pond stirs at: ${new Date().toISOString()}*`
+      });
+      console.log(`🪷 The Scribe has spoken in issue #${issue.number}`);
+    }
+    
+  } catch (error) {
+    console.error('The pond is troubled:', error);
+    
+    // Try to post error as comment if possible
+    if (process.env.ISSUE_NUMBER) {
+      await octokit.issues.createComment({
+        owner,
+        repo,
+        issue_number: parseInt(process.env.ISSUE_NUMBER),
+        body: `🌫️ *The pond grows cloudy...*\n\nThe Scribe cannot see clearly at this moment.\n\n\`${error.message}\``
+      });
+    }
+  }
 }
 
-run().catch(console.error);
+awakenScribe();
