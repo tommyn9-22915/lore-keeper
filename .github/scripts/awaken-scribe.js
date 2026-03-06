@@ -3,33 +3,10 @@ const { Octokit } = require('@octokit/rest');
 const fs = require('fs');
 const path = require('path');
 
-async function checkAvailableModels() {
-  try {
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models?key=' + process.env.GEMINI_API_KEY);
-    const data = await response.json();
-    console.log('📋 Available Gemini models:');
-    if (data.models) {
-      data.models.forEach(model => {
-        console.log(`   - ${model.name} (supports: ${model.supportedGenerationMethods?.join(', ')})`);
-      });
-      return data.models;
-    } else {
-      console.log('❌ No models found:', data);
-      return [];
-    }
-  } catch (error) {
-    console.log('❌ Could not fetch models:', error.message);
-    return [];
-  }
-}
-
 async function awakenScribe() {
   console.log("🪷 The Scribe is awakening...");
   
   try {
-    // Check available models first
-    const models = await checkAvailableModels();
-    
     // Read the agent's identity from root
     const agentPath = path.join(process.env.GITHUB_WORKSPACE, 'scribe.agent.md');
     const agentIdentity = fs.readFileSync(agentPath, 'utf8');
@@ -85,40 +62,13 @@ Speak now, ancient guardian of the pond:`;
 
     console.log('🤔 Consulting the sacred scrolls...');
     
-    // Try different model names - based on what we see from the API
-    const modelNames = [
-      "models/gemini-1.5-flash",
-      "models/gemini-1.5-pro",
-      "models/gemini-1.0-pro",
-      "models/gemini-pro",
-      "gemini-1.5-flash",
-      "gemini-1.5-pro"
-    ];
+    // Use Gemini 2.0 Flash - which we know exists from the list!
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    // FIXED: Using gemini-2.0-flash which is in the list
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
     
-    let lastError;
-    let response;
-    
-    for (const modelName of modelNames) {
-      try {
-        console.log(`Trying model: ${modelName}`);
-        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        // Some models need the full path, some don't
-        const model = genAI.getGenerativeModel({ 
-          model: modelName.startsWith('models/') ? modelName : modelName 
-        });
-        const result = await model.generateContent(fullPrompt);
-        response = await result.response.text();
-        console.log(`✅ Success with model: ${modelName}`);
-        break;
-      } catch (error) {
-        console.log(`❌ Model ${modelName} failed:`, error.message);
-        lastError = error;
-      }
-    }
-    
-    if (!response) {
-      throw lastError || new Error('No working model found');
-    }
+    const result = await model.generateContent(fullPrompt);
+    const response = await result.response.text();
     
     // Format response
     const scribeResponse = `🪷 *The pond ripples...*
