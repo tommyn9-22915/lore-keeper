@@ -15,10 +15,19 @@ jobs:
       - name: Checkout Sacred Pond
         uses: actions/checkout@v4
 
-      - name: Manifest the Scribe
-        uses: github/gh-aw@v1  # Fixed: removed duplicate 'uses:'
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          agent-file: '.github/agents/cave-scribe.agent.md'
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install @google/generative-ai
+
+      - name: Run Scribe Agent
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_BODY: ${{ github.event.comment.body }}
+        run: |
+          node .github/scripts/scribe-agent.js
