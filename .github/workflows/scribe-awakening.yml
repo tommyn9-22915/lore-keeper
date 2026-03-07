@@ -15,6 +15,10 @@ on:
         required: false
         default: 'The pond stirs...'
 
+concurrency:
+  group: cave-scribe-${{ github.event.issue.number || github.event.inputs.issue_number || 'manual' }}
+  cancel-in-progress: true
+
 jobs:
   scribe-reflection:
     runs-on: ubuntu-latest
@@ -51,6 +55,8 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
           # Use the built-in GitHub Actions token (scoped to this repo + workflow permissions)
           GITHUB_TOKEN: ${{ github.token }}

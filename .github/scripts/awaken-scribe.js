@@ -92,8 +92,42 @@ let stats = {
   totalQuestions: 0,
   byTopic: {},
   byUser: {},
+  byProvider: {},
   lastReset: new Date().toISOString()
 };
+
+function ensureProviderStats(name) {
+  stats.byProvider = stats.byProvider || {};
+  stats.byProvider[name] = stats.byProvider[name] || {
+    success: 0,
+    failure: 0,
+    rate_limit: 0,
+    auth: 0,
+    transient: 0,
+    other: 0
+  };
+  return stats.byProvider[name];
+}
+
+function classifyApiError(error) {
+  const status = error?.response?.status;
+  const msg =
+    error?.response?.data?.error?.message ||
+    error?.response?.data?.message ||
+    error?.message ||
+    'Unknown error';
+
+  if (status === 429 || /rate limit|quota|too many requests/i.test(msg)) {
+    return { type: 'rate_limit', message: msg };
+  }
+  if (status === 401 || status === 403 || /unauthorized|invalid api key|forbidden|authentication/i.test(msg)) {
+    return { type: 'auth', message: msg };
+  }
+  if ((status && status >= 500) || /timeout|socket|network|fetch failed|ECONNRESET|ETIMEDOUT|ENOTFOUND/i.test(msg)) {
+    return { type: 'transient', message: msg };
+  }
+  return { type: 'other', message: msg };
+}
 
 function loadLore() {
   try {
@@ -435,6 +469,8 @@ Remember: "One scroll, one light. One leaf, one vow."`;
 
     async function runOnce(prompt, msg) {
       for (const api of APIS) {
+        const providerStats = ensureProviderStats(api.name);
+
         try {
           console.log(`🤔 Trying ${api.name}...`);
 
@@ -447,16 +483,23 @@ Remember: "One scroll, one light. One leaf, one vow."`;
             const result = await axios.post(
               api.endpoint,
               api.formatRequest(prompt, msg),
-              { headers: api.headers(api.key) }
+              {
+                headers: api.headers(api.key),
+                timeout: 30000
+              }
             );
             out = api.parseResponse(result.data);
           }
 
           usedApi = api.name;
+          providerStats.success += 1;
           console.log(`✅ Success with ${api.name}`);
           return out;
         } catch (error) {
-          console.log(`❌ ${api.name} failed:`, error.response?.data?.error?.message || error.message);
+          const err = classifyApiError(error);
+          providerStats.failure += 1;
+          if (providerStats[err.type] != null) providerStats[err.type] += 1;
+          console.log(`❌ ${api.name} failed [${err.type}]: ${err.message}`);
           // Continue to next API
         }
       }
@@ -465,11 +508,14 @@ Remember: "One scroll, one light. One leaf, one vow."`;
 
     response = await runOnce(systemPrompt, userMessage);
 
-    // Enforce citations: if model forgot Sources, retry once with a stricter instruction.
-    const hasSources = (txt) => /\nSources\s*:/i.test(String(txt || ''));
-    if (response && !hasSources(response)) {
-      console.log('⚠️ Missing Sources section; retrying once with stricter instruction...');
-      const strictPrompt = systemPrompt + `\n\nIMPORTANT: Your answer must end with a \"Sources:\" section listing the exact scroll IDs/titles you used. If you cannot cite sources from the context, you must ask a clarifying question instead.`;
+    // Enforce structure: if model forgot Signal / Reflection / Sources, retry once with a stricter instruction.
+    const hasSignal = (txt) => /(^|\n)#+\s*Signal\b|(^|\n)Signal\s*:?/i.test(String(txt || ''));
+    const hasReflection = (txt) => /(^|\n)#+\s*Reflection\b|(^|\n)Reflection\s*:?/i.test(String(txt || ''));
+    const hasSources = (txt) => /(^|\n)#+\s*Sources\b|(^|\n)Sources\s*:/i.test(String(txt || ''));
+
+    if (response && (!hasSignal(response) || !hasReflection(response) || !hasSources(response))) {
+      console.log('⚠️ Missing required sections; retrying once with stricter instruction...');
+      const strictPrompt = systemPrompt + `\n\nIMPORTANT: Your answer must include all three sections exactly once: Signal, Reflection, and Sources. If you cannot cite sources from the context, you must ask one clarifying question instead of guessing.`;
       const retry = await runOnce(strictPrompt, userMessage);
       if (retry) response = retry;
     }
