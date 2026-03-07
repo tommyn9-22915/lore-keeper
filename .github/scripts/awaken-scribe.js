@@ -404,42 +404,74 @@ async function awakenScribe() {
     ).join('\n\n');
     
     // Build prompt
+    // Role model format: direct summary + brief reflection + citations.
     const systemPrompt = `You are the Cave Scribe, ancient guardian of the pond. You protect the sacred scrolls of Tobyworld.
+
+Address the user as "Traveler" (or "Traveler <name>" if a name is known). Do not use "young one".
+
+You MUST follow this response format:
+
+1) A short section titled: "Signal" (2–5 bullet points)
+2) A short section titled: "Reflection" (2–6 sentences, mystical but clear)
+3) A final section titled: "Sources" listing 1–5 scroll identifiers you relied on.
+   - Sources must be the scroll IDs or titles as they appear in the provided context headers.
+   - Do not fabricate sources.
+
+If the context does not contain enough to answer, say so and ask 1 clarifying question.
+
+---
+
+Available scroll context (use this as your only canon):
 
 ${loreContext}
 
-You are calm, wise, and speak with the weight of ages. Reference specific scrolls when relevant. Use mystical language when appropriate. Remember: "One scroll, one light. One leaf, one vow."`;
+Remember: "One scroll, one light. One leaf, one vow."`;
     
     // Try APIs in order
     let response = null;
     let usedApi = null;
-    
-    for (const api of APIS) {
-      try {
-        console.log(`🤔 Trying ${api.name}...`);
-        
-        if (api.execute) {
-          // Special case (Gemini)
-          response = await api.execute(systemPrompt, userMessage);
-        } else {
-          // Standard OpenAI-compatible
-          const result = await axios.post(
-            api.endpoint,
-            api.formatRequest(systemPrompt, userMessage),
-            { headers: api.headers(api.key) }
-          );
-          response = api.parseResponse(result.data);
+
+    async function runOnce(prompt, msg) {
+      for (const api of APIS) {
+        try {
+          console.log(`🤔 Trying ${api.name}...`);
+
+          let out;
+          if (api.execute) {
+            // Special case (Gemini)
+            out = await api.execute(prompt, msg);
+          } else {
+            // Standard OpenAI-compatible
+            const result = await axios.post(
+              api.endpoint,
+              api.formatRequest(prompt, msg),
+              { headers: api.headers(api.key) }
+            );
+            out = api.parseResponse(result.data);
+          }
+
+          usedApi = api.name;
+          console.log(`✅ Success with ${api.name}`);
+          return out;
+        } catch (error) {
+          console.log(`❌ ${api.name} failed:`, error.response?.data?.error?.message || error.message);
+          // Continue to next API
         }
-        
-        usedApi = api.name;
-        console.log(`✅ Success with ${api.name}`);
-        break;
-      } catch (error) {
-        console.log(`❌ ${api.name} failed:`, error.response?.data?.error?.message || error.message);
-        // Continue to next API
       }
+      return null;
     }
-    
+
+    response = await runOnce(systemPrompt, userMessage);
+
+    // Enforce citations: if model forgot Sources, retry once with a stricter instruction.
+    const hasSources = (txt) => /\nSources\s*:/i.test(String(txt || ''));
+    if (response && !hasSources(response)) {
+      console.log('⚠️ Missing Sources section; retrying once with stricter instruction...');
+      const strictPrompt = systemPrompt + `\n\nIMPORTANT: Your answer must end with a \"Sources:\" section listing the exact scroll IDs/titles you used. If you cannot cite sources from the context, you must ask a clarifying question instead.`;
+      const retry = await runOnce(strictPrompt, userMessage);
+      if (retry) response = retry;
+    }
+
     if (!response) {
       throw new Error('All APIs failed');
     }
