@@ -7,8 +7,11 @@ on:
     types: [created]
   workflow_dispatch:
     inputs:
+      issue_number:
+        description: 'Optional: reply to an existing Issue number (e.g. 11)'
+        required: false
       message:
-        description: 'Message for the Cave Scribe'
+        description: 'Message for the Cave Scribe (used for manual runs)'
         required: false
         default: 'The pond stirs...'
 
@@ -72,10 +75,14 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
 
           MANUAL_MESSAGE: ${{ github.event.inputs.message }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
+
+          # If manually dispatched with an issue_number, force a reply to that issue.
+          ISSUE_NUMBER: ${{ github.event.inputs.issue_number || github.event.issue.number }}
+
           COMMENT_BODY: ${{ github.event.comment.body }}
           COMMENT_USER: ${{ github.event.comment.user.login }}
-          NEW_ISSUE_NUMBER: ${{ github.event.issue.number }}
+
+          NEW_ISSUE_NUMBER: ${{ github.event.inputs.issue_number || github.event.issue.number }}
           NEW_ISSUE_TITLE: ${{ github.event.issue.title }}
           NEW_ISSUE_BODY: ${{ github.event.issue.body }}
           NEW_ISSUE_USER: ${{ github.event.issue.user.login }}
