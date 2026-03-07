@@ -139,7 +139,7 @@
         <div class="grid">
             <!-- STATS CARD -->
             <div class="card" id="stats-card">
-                <h2>📊 &nbsp; Sacred Ledger</h2>
+                <h2>📊 &nbsp; Sacred Ledger <span id="stats-status" style="font-size:0.8rem; opacity:0.75;"></span></h2>
                 <div id="stats-content">
                     <p>Loading stats from the pond...</p>
                 </div>
@@ -147,7 +147,7 @@
 
             <!-- TOPICS CARD -->
             <div class="card">
-                <h2>🔖 &nbsp; Scroll Topics</h2>
+                <h2>🔖 &nbsp; Scroll Topics <span id="topics-status" style="font-size:0.8rem; opacity:0.75;"></span></h2>
                 <div id="topics-content">
                     <p>Waiting...</p>
                 </div>
@@ -155,7 +155,7 @@
 
             <!-- TOP USERS CARD -->
             <div class="card">
-                <h2>👥 &nbsp; Frequent Travelers</h2>
+                <h2>👥 &nbsp; Frequent Travelers <span id="users-status" style="font-size:0.8rem; opacity:0.75;"></span></h2>
                 <div id="users-content">
                     <p>Waiting...</p>
                 </div>
@@ -164,7 +164,7 @@
 
         <!-- VALIDATOR LEADERBOARD -->
         <div class="card" style="margin-top: 1rem;">
-            <h2>🏆 &nbsp; Validator Ledger (wallets mentioned)</h2>
+            <h2>🏆 &nbsp; Validator Ledger (wallets mentioned) <span id="validator-status" style="font-size:0.8rem; opacity:0.75;"></span></h2>
             <div id="validator-content">
                 <p>Loading validators from the deep...</p>
             </div>
@@ -173,22 +173,47 @@
             </div>
         </div>
 
+        <div style="display:flex; gap:0.75rem; flex-wrap:wrap; justify-content:center; margin-top: 1.5rem;">
+            <a id="ask-link" href="#" style="text-decoration:none; color:#a5f3fc; border:1px solid #2b6a9e; padding:0.6rem 1rem; border-radius:999px; background:#0b2b3f;">Ask the Scribe</a>
+            <a id="issues-link" href="#" style="text-decoration:none; color:#a5f3fc; border:1px solid #2b6a9e; padding:0.6rem 1rem; border-radius:999px; background:#0b2b3f;">View the Ledger (Issues)</a>
+            <a id="actions-link" href="#" style="text-decoration:none; color:#a5f3fc; border:1px solid #2b6a9e; padding:0.6rem 1rem; border-radius:999px; background:#0b2b3f;">Index Rebuild (Maintainers)</a>
+        </div>
+
         <div class="footer">
             <span class="refresh-note">⏳ updates when the Scribe speaks · data lives in /data/stats.json & validators.csv</span><br>
             <span style="opacity: 0.6;">"One scroll, one light. One leaf, one vow."</span>
         </div>
     </div>
 
+    <script src="config.js"></script>
     <script>
-        // GitHub raw URLs (change to your repo)
-        const STATS_URL = 'https://raw.githubusercontent.com/MirrorAgent1/lore-keeper/main/data/stats.json';
-        const VALIDATORS_URL = 'https://raw.githubusercontent.com/MirrorAgent1/lore-keeper/main/data/validators.csv';
+        // GitHub raw URLs (forks: edit docs/config.js)
+        const CFG = window.LORE_KEEPER || { owner: 'MirrorAgent1', repo: 'lore-keeper', branch: 'main' };
+        const RAW_BASE = `https://raw.githubusercontent.com/${CFG.owner}/${CFG.repo}/${CFG.branch}`;
+        const STATS_URL = `${RAW_BASE}/data/stats.json`;
+        const VALIDATORS_URL = `${RAW_BASE}/data/validators.csv`;
+
+        function setPanelStatus(elId, ok, msg) {
+            const el = document.getElementById(elId);
+            if (!el) return;
+            const color = ok ? '#7CFCB3' : '#ffa07a';
+            const text = ok ? 'OK' : 'ERROR';
+            el.innerHTML = `<span style="color:${color}; font-weight:600;">${text}</span> <span style="opacity:0.75;">${msg || ''}</span>`;
+        }
+
+        function escapeHtml(s) {
+            return String(s)
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;');
+        }
 
         async function fetchStats() {
             try {
-                const res = await fetch(STATS_URL);
-                if (!res.ok) throw new Error('Stats not found');
+                const res = await fetch(STATS_URL, { cache: 'no-store' });
+                if (!res.ok) throw new Error(`Stats not found (HTTP ${res.status})`);
                 const stats = await res.json();
+                setPanelStatus('stats-status', true, `updated ${new Date().toLocaleTimeString()}`);
 
                 // Update total questions
                 const total = stats.totalQuestions || 0;
@@ -209,10 +234,12 @@
                 if (stats.byTopic && Object.keys(stats.byTopic).length > 0) {
                     const sorted = Object.entries(stats.byTopic).sort((a,b) => b[1] - a[1]);
                     topicsHtml = sorted.map(([topic, count]) => `
-                        <div class="topic-item"><span class="topic-name">${topic}</span><span class="topic-count">${count}</span></div>
+                        <div class="topic-item"><span class="topic-name">${escapeHtml(topic)}</span><span class="topic-count">${count}</span></div>
                     `).join('');
+                    setPanelStatus('topics-status', true, '');
                 } else {
                     topicsHtml = '<p>No topics recorded yet.</p>';
+                    setPanelStatus('topics-status', true, 'empty');
                 }
                 document.getElementById('topics-content').innerHTML = topicsHtml;
 
@@ -221,53 +248,92 @@
                 if (stats.byUser && Object.keys(stats.byUser).length > 0) {
                     const sorted = Object.entries(stats.byUser).sort((a,b) => b[1] - a[1]).slice(0, 10);
                     usersHtml = sorted.map(([user, count]) => `
-                        <div class="user-item"><span class="user-name">${user}</span><span class="user-count">${count}</span></div>
+                        <div class="user-item"><span class="user-name">${escapeHtml(user)}</span><span class="user-count">${count}</span></div>
                     `).join('');
+                    setPanelStatus('users-status', true, '');
                 } else {
                     usersHtml = '<p>No users yet.</p>';
+                    setPanelStatus('users-status', true, 'empty');
                 }
                 document.getElementById('users-content').innerHTML = usersHtml;
 
             } catch (error) {
+                setPanelStatus('stats-status', false, error.message);
+                setPanelStatus('topics-status', false, '');
+                setPanelStatus('users-status', false, '');
                 document.getElementById('stats-content').innerHTML = '<p style="color:#ffa07a;">Could not reach the ledger. Have the Scribe spoken yet?</p>';
                 console.error(error);
             }
         }
 
+        function parseCsvLine(line) {
+            // Minimal CSV line parser (handles quotes + commas inside quotes)
+            const out = [];
+            let cur = '';
+            let inQ = false;
+            for (let i = 0; i < line.length; i++) {
+                const ch = line[i];
+                if (ch === '"') {
+                    // escaped quote
+                    if (inQ && line[i + 1] === '"') {
+                        cur += '"';
+                        i++;
+                    } else {
+                        inQ = !inQ;
+                    }
+                } else if (ch === ',' && !inQ) {
+                    out.push(cur);
+                    cur = '';
+                } else {
+                    cur += ch;
+                }
+            }
+            out.push(cur);
+            return out;
+        }
+
         async function fetchValidators() {
             try {
-                const res = await fetch(VALIDATORS_URL);
-                if (!res.ok) throw new Error('Validators not found');
+                const res = await fetch(VALIDATORS_URL, { cache: 'no-store' });
+                if (!res.ok) throw new Error(`Validators not found (HTTP ${res.status})`);
                 const csv = await res.text();
-                const lines = csv.trim().split('\n');
+                const lines = csv.trim().split('\n').filter(Boolean);
                 if (lines.length <= 1) {
+                    setPanelStatus('validator-status', true, 'empty');
                     document.getElementById('validator-content').innerHTML = '<p>No validators recorded yet. Ask the Scribe with a wallet!</p>';
                     return;
                 }
 
-                // Parse CSV (simple)
-                const headers = lines[0].split(',');
-                const data = lines.slice(1).reverse(); // show newest first
+                setPanelStatus('validator-status', true, `updated ${new Date().toLocaleTimeString()}`);
+
+                const data = lines.slice(1).reverse(); // newest first
                 let tableHtml = '<table><tr><th>Wallet</th><th>Date</th><th>Question</th></tr>';
                 data.slice(0, 15).forEach(line => {
-                    // naive parse – assumes no commas inside quoted fields
-                    const parts = line.split(',');
+                    const parts = parseCsvLine(line);
                     if (parts.length >= 3) {
-                        const wallet = parts[0];
+                        const wallet = escapeHtml(parts[0]);
                         const date = new Date(parts[1]).toLocaleString();
-                        const question = parts.slice(2).join(',').replace(/^"|"$/g, '');
-                        tableHtml += `<tr><td class="wallet">${wallet}</td><td class="date">${date}</td><td>${question.substring(0, 30)}...</td></tr>`;
+                        const question = escapeHtml(parts.slice(2).join(',')).replace(/^"|"$/g, '');
+                        tableHtml += `<tr><td class="wallet">${wallet}</td><td class="date">${date}</td><td>${question.substring(0, 80)}${question.length > 80 ? '…' : ''}</td></tr>`;
                     }
                 });
                 tableHtml += '</table>';
                 document.getElementById('validator-content').innerHTML = tableHtml;
             } catch (error) {
+                setPanelStatus('validator-status', false, error.message);
                 document.getElementById('validator-content').innerHTML = '<p>Validator data not yet available.</p>';
             }
         }
 
+        // Wire links
+        const baseRepoUrl = `https://github.com/${CFG.owner}/${CFG.repo}`;
+        document.getElementById('ask-link').href = `${baseRepoUrl}/issues/new/choose`;
+        document.getElementById('issues-link').href = `${baseRepoUrl}/issues`;
+        document.getElementById('actions-link').href = `${baseRepoUrl}/actions/workflows/index-rebuild.yml`;
+
         fetchStats();
         fetchValidators();
+
         // auto refresh every 60 seconds (optional)
         setInterval(() => {
             fetchStats();
